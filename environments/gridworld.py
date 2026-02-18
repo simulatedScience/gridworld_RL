@@ -36,8 +36,8 @@ class GridWorldConfig:
 
     width: int
     height: int
-    start_pos: Position
-    goal_pos: Position
+    start_positions: tuple[Position, ...]  # at least one required; chosen randomly on reset
+    goal_positions: tuple[Position, ...]   # at least one required; any reached position terminates the episode
     walls: tuple[Position, ...] = ()
     hazards: tuple[Position, ...] = ()
     slippery_tiles: tuple[Position, ...] = ()
@@ -61,12 +61,28 @@ class GridWorldConfig:
         path = Path(file_path)
         payload = json.loads(path.read_text(encoding="utf-8"))
 
+        # Support both legacy single-position keys and the new multi-position arrays.
+        if "start_positions" in payload:
+            start_positions = tuple(Position(*p) for p in payload["start_positions"])
+        elif "start_pos" in payload:
+            start_positions = (Position(*payload["start_pos"]),)
+        else:
+            raise ValueError("Config must contain 'start_positions' or 'start_pos'.")
+
+        if "goal_positions" in payload:
+            goal_positions = tuple(Position(*p) for p in payload["goal_positions"])
+        elif "goal_pos" in payload:
+            goal_positions = (Position(*payload["goal_pos"]),)
+        else:
+            raise ValueError("Config must contain 'goal_positions' or 'goal_pos'.")
+
         return cls(
             width=int(payload["width"]),
             height=int(payload["height"]),
-            start_pos=Position(*payload["start_pos"]),
-            goal_pos=Position(*payload["goal_pos"]),
+            start_positions=start_positions,
+            goal_positions=goal_positions,
             walls=tuple(Position(*coords) for coords in payload.get("walls", [])),
+
             hazards=tuple(Position(*coords) for coords in payload.get("hazards", [])),
             slippery_tiles=tuple(Position(*coords) for coords in payload.get("slippery_tiles", [])),
             slip_probability=float(payload.get("slip_probability", 0.35)),
@@ -116,8 +132,8 @@ class GridWorldEnv(gym.Env[np.ndarray, int]):
         )
 
         self._step_count: int = 0
-        self._agent_pos: Position = self.config.start_pos
-        self._goal_pos: Position = self.config.goal_pos
+        self._agent_pos: Position = config.start_positions[0]  # overwritten properly in reset()
+        self._goal_positions: frozenset[Position] = frozenset(config.goal_positions)
 
         self._walls: set[Position] = set(config.walls)
         self._hazards: set[Position] = set(config.hazards)
@@ -134,42 +150,46 @@ class GridWorldEnv(gym.Env[np.ndarray, int]):
         if self.config.width <= 0 or self.config.height <= 0:
             raise ValueError("Grid dimensions must be positive integers.")
 
-        if not in_bounds(self.config.start_pos):
-            raise ValueError("start_pos is outside the grid bounds.")
+        if not self.config.start_positions:
+            raise ValueError("At least one start position is required.")
 
-        if not in_bounds(self.config.goal_pos):
-            raise ValueError("goal_pos is outside the grid bounds.")
+        if not self.config.goal_positions:
+            raise ValueError("At least one goal position is required.")
+
+        for pos in self.config.start_positions:
+            if not in_bounds(pos):
+                raise ValueError(f"Start position {pos} is outside the grid bounds.")
+
+        for pos in self.config.goal_positions:
+            if not in_bounds(pos):
+                raise ValueError(f"Goal position {pos} is outside the grid bounds.")
 
         if not 0.0 <= self.config.slip_probability <= 1.0:
             raise ValueError("slip_probability must be in [0.0, 1.0].")
 
         for pos in (*self._walls, *self._hazards, *self._slippery_tiles):
-            if not in_bounds(pos): # optional sanity check
+            if not in_bounds(pos):
                 raise ValueError(f"Object position {pos} is outside the grid bounds.")
 
-        if self.config.start_pos in self._walls: # optional simplification
-            raise ValueError("start_pos cannot be a wall.")
+        start_set = frozenset(self.config.start_positions)
+        goal_set = frozenset(self.config.goal_positions)
 
-        if self.config.goal_pos in self._walls:
-            raise ValueError("goal_pos cannot be a wall.")
-
-        if self.config.start_pos in self._hazards:
-            raise ValueError("start_pos cannot be a hazard.")
-
-        if self.config.goal_pos in self._hazards:
-            raise ValueError("goal_pos cannot be a hazard.")
-
-        if self.config.start_pos in self._slippery_tiles:
-            raise ValueError("start_pos cannot be a slippery tile.")
-
-        if self.config.goal_pos in self._slippery_tiles:
-            raise ValueError("goal_pos cannot be a slippery tile.")
-
-        if self._walls & self._slippery_tiles: # optional simplification
-            raise ValueError("A tile cannot be both wall and slippery.")
-
-        if self.config.start_pos == self.config.goal_pos:
-            raise ValueError("start_pos and goal_pos must be different.")
+        if start_set & goal_set:
+            raise ValueError("Start and goal positions cannot overlap.")
+        if start_set & self._walls:
+            raise ValueError("Start position(s) cannot be placed on walls.")
+        if goal_set & self._walls:
+            raise ValueError("Goal position(s) cannot be placed on walls.")
+        if start_set & self._hazards:
+            raise ValueError("Start position(s) cannot be placed on hazards.")
+        if goal_set & self._hazards:
+            raise ValueError("Goal position(s) cannot be placed on hazards.")
+        if start_set & self._slippery_tiles:
+            raise ValueError("Start position(s) cannot be placed on slippery tiles.")
+        if goal_set & self._slippery_tiles:
+            raise ValueError("Goal position(s) cannot be placed on slippery tiles.")
+        if self._walls & self._slippery_tiles:
+            raise ValueError("A tile cannot be both a wall and a slippery tile.")
 
     @property
     def agent_pos(self) -> Position:
@@ -203,7 +223,12 @@ class GridWorldEnv(gym.Env[np.ndarray, int]):
         _ = options
 
         self._step_count = 0
-        self._agent_pos = self.config.start_pos
+        starts = self.config.start_positions
+        if len(starts) > 1:
+            assert self.np_random is not None
+            self._agent_pos = starts[int(self.np_random.integers(0, len(starts)))]
+        else:
+            self._agent_pos = starts[0]
 
         observation = self._get_observation()
         info: dict[str, Any] = {
@@ -237,7 +262,7 @@ class GridWorldEnv(gym.Env[np.ndarray, int]):
         reward = self.config.step_penalty
         terminated = False
 
-        if self._agent_pos == self._goal_pos:
+        if self._agent_pos in self._goal_positions:
             reward += self.config.goal_reward
             terminated = True
         elif self._agent_pos in self._hazards:
@@ -299,8 +324,10 @@ class GridWorldEnv(gym.Env[np.ndarray, int]):
         for pos in self._slippery_tiles:
             layout[pos.row, pos.col] = int(CellType.SLIPPERY)
 
-        layout[self.config.start_pos.row, self.config.start_pos.col] = int(CellType.START)
-        layout[self.config.goal_pos.row, self.config.goal_pos.col] = int(CellType.GOAL)
+        for pos in self.config.start_positions:
+            layout[pos.row, pos.col] = int(CellType.START)
+        for pos in self.config.goal_positions:
+            layout[pos.row, pos.col] = int(CellType.GOAL)
         return layout
 
     def _get_observation(self) -> np.ndarray:

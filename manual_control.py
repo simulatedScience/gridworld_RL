@@ -114,7 +114,8 @@ def main() -> None:
                     slip_count += 1
 
                 if terminated or truncated:
-                    reached_goal = bool(info.get("agent_pos") == (config.goal_pos.row, config.goal_pos.col))
+                    _goal_tuples = {(p.row, p.col) for p in config.goal_positions}
+                    reached_goal = info.get("agent_pos") in _goal_tuples
                     hazard_hit = bool(not reached_goal)
                     logger.log_episode(
                         EpisodeSummary(

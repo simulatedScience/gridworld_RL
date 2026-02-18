@@ -19,8 +19,8 @@ class TestGridWorldEnv(unittest.TestCase):
         self.config = GridWorldConfig(
             width=5,
             height=4,
-            start_pos=Position(1, 1),
-            goal_pos=Position(1, 3),
+            start_positions=(Position(1, 1),),
+            goal_positions=(Position(1, 3),),
             walls=(Position(0, 1),),
             hazards=(Position(3, 3),),
             slippery_tiles=(Position(1, 2),),
@@ -72,8 +72,8 @@ class TestGridWorldEnv(unittest.TestCase):
         config = GridWorldConfig(
             width=6,
             height=4,
-            start_pos=Position(1, 1),
-            goal_pos=Position(1, 5),
+            start_positions=(Position(1, 1),),
+            goal_positions=(Position(1, 5),),
             slippery_tiles=(Position(1, 2),),
             slip_probability=1.0,
             max_steps=20,
