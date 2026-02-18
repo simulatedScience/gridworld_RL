@@ -1,0 +1,74 @@
+<mxfile host="app.diagrams.net" modified="2026-02-18T12:00:00.000Z" agent="GitHub Copilot" version="24.7.17" type="device">
+  <diagram id="gridworld-structure" name="Program Structure">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="env" value="GridWorldEnv&#10;environments/gridworld.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="580" y="320" width="300" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cfg" value="GridWorldConfig&#10;configs/env/default.json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="180" y="120" width="260" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="obj" value="CellType + Position&#10;environments/objects.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="180" y="260" width="260" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="renderer" value="GridWorldRenderer&#10;environments/renderer.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="230" width="280" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="manual" value="manual_control.py&#10;Keyboard loop + HUD" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="980" y="430" width="300" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="logger" value="JsonRunLogger&#10;experiment_logging/logger.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="980" y="600" width="300" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="logs" value="experiments/logs/*.jsonl" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="980" y="760" width="300" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="tests" value="tests/test_environment.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="180" y="430" width="260" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" value="loads" style="endArrow=block;endFill=1;html=1;" edge="1" parent="1" source="cfg" target="env">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e2" value="uses" style="endArrow=block;endFill=1;html=1;" edge="1" parent="1" source="obj" target="env">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e3" value="step/reset" style="endArrow=block;endFill=1;html=1;" edge="1" parent="1" source="manual" target="env">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e4" value="observation" style="endArrow=block;endFill=1;html=1;" edge="1" parent="1" source="env" target="renderer">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e5" value="draw/hud" style="endArrow=block;endFill=1;html=1;" edge="1" parent="1" source="manual" target="renderer">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e6" value="episode events" style="endArrow=block;endFill=1;html=1;" edge="1" parent="1" source="manual" target="logger">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e7" value="writes" style="endArrow=block;endFill=1;html=1;" edge="1" parent="1" source="logger" target="logs">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e8" value="validates behavior" style="endArrow=block;endFill=1;html=1;dashed=1;" edge="1" parent="1" source="tests" target="env">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
