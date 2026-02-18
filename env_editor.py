@@ -7,7 +7,7 @@ Usage:
 Controls:
     - Left-click / drag : paint the selected cell type
     - Right-click / drag: erase (set cell to EMPTY)
-    - Ctrl+N : new grid        Ctrl+O : open file
+    - Ctrl+N : new grid        Ctrl+O : load file
     - Ctrl+S : save            Ctrl+Shift+S : save as
 
 Notes:
@@ -163,7 +163,7 @@ class EditorApp(tk.Tk):
 
         fm = tk.Menu(mb, tearoff=False)
         fm.add_command(label="New",        accelerator="Ctrl+N",       command=self._cmd_new)
-        fm.add_command(label="Open…",      accelerator="Ctrl+O",       command=self._cmd_open)
+        fm.add_command(label="Load…",      accelerator="Ctrl+O",       command=self._cmd_load)
         fm.add_separator()
         fm.add_command(label="Save",       accelerator="Ctrl+S",       command=self._cmd_save)
         fm.add_command(label="Save As…",   accelerator="Ctrl+Shift+S", command=self._cmd_save_as)
@@ -180,7 +180,7 @@ class EditorApp(tk.Tk):
         self.config(menu=mb)
 
         self.bind_all("<Control-n>", lambda _e: self._cmd_new())
-        self.bind_all("<Control-o>", lambda _e: self._cmd_open())
+        self.bind_all("<Control-o>", lambda _e: self._cmd_load())
         self.bind_all("<Control-s>", lambda _e: self._cmd_save())
         self.bind_all("<Control-S>", lambda _e: self._cmd_save_as())
 
@@ -249,6 +249,12 @@ class EditorApp(tk.Tk):
 
     def _setup_config_panel(self, parent: ttk.Frame) -> None:
         ttk.Label(parent, text="CONFIG", font=("TkDefaultFont", 9, "bold")).pack(pady=(8, 4))
+
+        file_actions = ttk.LabelFrame(parent, text="File", padding=6)
+        file_actions.pack(fill=tk.X, padx=4, pady=2)
+        ttk.Button(file_actions, text="New", command=self._cmd_new).pack(fill=tk.X, pady=2)
+        ttk.Button(file_actions, text="Load", command=self._cmd_load).pack(fill=tk.X, pady=2)
+        ttk.Button(file_actions, text="Save As", command=self._cmd_save_as).pack(fill=tk.X, pady=2)
 
         pf = ttk.LabelFrame(parent, text="Parameters", padding=6)
         pf.pack(fill=tk.X, padx=4, pady=2)
@@ -492,17 +498,72 @@ class EditorApp(tk.Tk):
         return {
             "width":            self.grid_w,
             "height":           self.grid_h,
-            "start_positions":  starts,
-            "goal_positions":   goals,
-            "walls":            walls,
-            "hazards":          hazards,
-            "slippery_tiles":   slippery,
             "slip_probability": float(self._var_slip_prob.get()),
             "max_steps":        int(float(self._var_max_steps.get())),
             "step_penalty":     float(self._var_step_pen.get()),
             "goal_reward":      float(self._var_goal_rew.get()),
             "hazard_penalty":   float(self._var_hazard_pen.get()),
+            "start_positions":  starts,
+            "goal_positions":   goals,
+            "walls":            walls,
+            "hazards":          hazards,
+            "slippery_tiles":   slippery,
         }
+
+    @staticmethod
+    def _format_tile_rows(tile_rows: list[list[int]], indent: str = "    ") -> list[str]:
+        """Format tile coordinates as one row per tile: ``[r, c]``."""
+
+        return [f"{indent}[{row}, {col}]" for row, col in tile_rows]
+
+    def _format_config_json(self, payload: dict) -> str:
+        """Format config JSON for readability.
+
+        Rules:
+            - Numeric settings first.
+            - Tile lists use one line per tile coordinate.
+        """
+
+        numeric_keys: tuple[str, ...] = (
+            "width",
+            "height",
+            "slip_probability",
+            "max_steps",
+            "step_penalty",
+            "goal_reward",
+            "hazard_penalty",
+        )
+        tile_keys: tuple[str, ...] = (
+            "start_positions",
+            "goal_positions",
+            "walls",
+            "hazards",
+            "slippery_tiles",
+        )
+
+        lines: list[str] = ["{"]
+
+        for key in numeric_keys:
+            value = json.dumps(payload[key])
+            lines.append(f'  "{key}": {value},')
+
+        for index, key in enumerate(tile_keys):
+            tile_rows = payload[key]
+            is_last_block = index == len(tile_keys) - 1
+            trailing_comma = '' if is_last_block else ','
+
+            if not tile_rows:
+                lines.append(f'  "{key}": []{trailing_comma}')
+                continue
+
+            lines.append(f'  "{key}": [')
+            for row_index, row_line in enumerate(self._format_tile_rows(tile_rows)):
+                is_last_row = row_index == len(tile_rows) - 1
+                lines.append(f"{row_line}{'' if is_last_row else ','}")
+            lines.append(f"  ]{trailing_comma}")
+
+        lines.append("}")
+        return "\n".join(lines) + "\n"
 
     def _from_dict(self, data: dict) -> None:
         """Populate the editor from a config dict (new *and* legacy format)."""
@@ -577,11 +638,11 @@ class EditorApp(tk.Tk):
         self.title("GridWorld Environment Editor — Untitled")
         self._status_var.set(f"New {w}×{h} grid created.")
 
-    def _cmd_open(self) -> None:
+    def _cmd_load(self) -> None:
         if not self._ask_discard():
             return
         path_str = filedialog.askopenfilename(
-            title="Open environment configuration",
+            title="Load environment configuration",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
             initialdir="configs/env",
         )
@@ -614,7 +675,7 @@ class EditorApp(tk.Tk):
             return
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(self._to_dict(), indent=2), encoding="utf-8")
+            path.write_text(self._format_config_json(self._to_dict()), encoding="utf-8")
             self._save_path = path
             self._dirty = False
             self.title(f"GridWorld Environment Editor — {path.name}")

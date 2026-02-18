@@ -37,10 +37,10 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+def main(args = None) -> None:
     """Run the interactive manual-control loop."""
 
-    args = parse_args()
+    args = parse_args() if args is None else args
     config = GridWorldConfig.from_json_file(args.config)
     env = GridWorldEnv(config=config)
     logger = JsonRunLogger(
@@ -143,4 +143,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # in-file settings
+    
     main()
