@@ -87,7 +87,7 @@ class JsonRunLogger:
             "event_type": event_type,
             "payload": payload,
         }
-        self._stream.write(json.dumps(event) + "\n")
+        self._stream.write(json.dumps(event, indent=2) + "\n")
         self._stream.flush()
 
     def log_episode(self, summary: EpisodeSummary) -> None:
