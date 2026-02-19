@@ -45,9 +45,15 @@ def main(args = None) -> None:
     env = GridWorldEnv(config=config)
     logger = JsonRunLogger(
         run_name="manual_control",
+        output_dir="experiments/logs/manual_control",
         metadata={
             "config_path": str(args.config),
             "fps": args.fps,
+            "slip_probability": config.slip_probability,
+            "step_penalty": config.step_penalty,
+            "goal_reward": config.goal_reward,
+            "hazard_penalty": config.hazard_penalty,
+            "max_steps": config.max_steps,
         },
     )
 
@@ -61,6 +67,7 @@ def main(args = None) -> None:
     episode_return = 0.0
     episode_index = 0
     slip_count = 0
+    trajectory: list[tuple[int, int]] = []
 
     try:
         while running:
@@ -85,6 +92,8 @@ def main(args = None) -> None:
                     break
 
                 if event.key == pygame.K_r:
+                    agent_pos_raw = info.get("agent_pos", (0, 0))
+                    final_position = (int(agent_pos_raw[0]), int(agent_pos_raw[1]))
                     logger.log_episode(
                         EpisodeSummary(
                             episode_index=episode_index,
@@ -95,13 +104,15 @@ def main(args = None) -> None:
                             reached_goal=False,
                             hazard_hit=False,
                             slip_count=slip_count,
-                            final_position=tuple(info.get("agent_pos", (0, 0))),
+                            final_position=final_position,
+                            trajectory=tuple(trajectory),
                         )
                     )
                     episode_index += 1
                     observation, info = env.reset()
                     episode_return = 0.0
                     slip_count = 0
+                    trajectory = []
                     continue
 
                 action = renderer.key_to_action(event.key)
@@ -110,6 +121,12 @@ def main(args = None) -> None:
 
                 observation, reward, terminated, truncated, info = env.step(action)
                 episode_return += reward
+                trajectory.append(
+                    (
+                        int(info.get("requested_action", action)),
+                        int(info.get("effective_action", action)),
+                    )
+                )
                 if bool(info.get("slipped", False)):
                     slip_count += 1
 
@@ -117,6 +134,8 @@ def main(args = None) -> None:
                     _goal_tuples = {(p.row, p.col) for p in config.goal_positions}
                     reached_goal = info.get("agent_pos") in _goal_tuples
                     hazard_hit = bool(not reached_goal)
+                    agent_pos_raw = info.get("agent_pos", (0, 0))
+                    final_position = (int(agent_pos_raw[0]), int(agent_pos_raw[1]))
                     logger.log_episode(
                         EpisodeSummary(
                             episode_index=episode_index,
@@ -127,13 +146,15 @@ def main(args = None) -> None:
                             reached_goal=reached_goal,
                             hazard_hit=hazard_hit,
                             slip_count=slip_count,
-                            final_position=tuple(info.get("agent_pos", (0, 0))),
+                            final_position=final_position,
+                            trajectory=tuple(trajectory),
                         )
                     )
                     episode_index += 1
                     observation, info = env.reset()
                     episode_return = 0.0
                     slip_count = 0
+                    trajectory = []
 
             renderer.tick(clock, fps=args.fps)
     finally:

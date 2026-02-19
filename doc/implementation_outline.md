@@ -80,7 +80,7 @@ Strategies are decoupled from agents — any strategy pairs with any agent.
 - [x] `gridworld.py` with Gym interface and object system
 - [x] `renderer.py` (Pygame live view)
 - [ ] `reward_functions/` base + sparse + dense
-- [ ] `logger.py`
+- [x] `logger.py`
 - [ ] `metrics.py`
 
 ### Phase 2 — Agents & Networks

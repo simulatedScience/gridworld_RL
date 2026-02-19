@@ -520,7 +520,7 @@ class EditorApp(tk.Tk):
         """End left-button paint mode.
 
         Args:
-            _event (TkMouseEvent): Tkinter mouse event produced by left-button release.
+            _event (TkMouseEvent): Tkinter mouse event produced by left-button release. (unused)
 
         Returns:
             None: Paint mode is disabled.

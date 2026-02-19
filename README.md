@@ -61,6 +61,8 @@ Current prototype uses a `gymnasium` environment in `environments/gridworld.py` 
 - the second closest goal is in a more open area accessible via slippery tiles
 - the third goal is farthest away but reachable via a wide corridor without slippery tiles but a few hazards along the sides
 
+Several other environments are provided that contain various challenges focused around exploration behaviour and evaluating risk aversion of agents.
+
 ### Manual Controller
 
 Run the environment with keyboard controls:
