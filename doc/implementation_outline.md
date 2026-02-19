@@ -77,10 +77,11 @@ Strategies are decoupled from agents — any strategy pairs with any agent.
 ## 3. Implementation Phases
 
 ### Phase 1 — Core Infrastructure
-- [ ] `gridworld.py` with Gym interface and object system
-- [ ] `renderer.py` (Matplotlib static, Pygame live)
+- [x] `gridworld.py` with Gym interface and object system
+- [x] `renderer.py` (Pygame live view)
 - [ ] `reward_functions/` base + sparse + dense
-- [ ] `logger.py` + `metrics.py`
+- [ ] `logger.py`
+- [ ] `metrics.py`
 
 ### Phase 2 — Agents & Networks
 - [ ] `mlp.py`, `rnn.py`

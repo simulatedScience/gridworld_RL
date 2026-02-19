@@ -56,11 +56,10 @@ Current prototype uses a `gymnasium` environment in `environments/gridworld.py` 
 
 ### Default Map
 
-`configs/env/default.json` is now a larger 22×16 map with:
-
-- multiple wall corridors,
-- hazard clusters,
-- slippery regions intentionally placed near hazards.
+`configs/env/default.json` is a 22×16 map containing three goals:
+- the closest goal is at the end of a narrow path
+- the second closest goal is in a more open area accessible via slippery tiles
+- the third goal is farthest away but reachable via a wide corridor without slippery tiles but a few hazards along the sides
 
 ### Manual Controller
 

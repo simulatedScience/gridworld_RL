@@ -77,6 +77,10 @@ PAINTABLE: tuple[CellType, ...] = (
     CellType.SLIPPERY,
 )
 
+# Tkinter's Event type is generic in typeshed, so provide a concrete alias
+# for bound callback signatures.
+TkMouseEvent = tk.Event[tk.Misc]
+
 
 # ---------------------------------------------------------------------------
 # Main application
@@ -86,6 +90,15 @@ class EditorApp(tk.Tk):
     """Full-featured GridWorld environment editor window."""
 
     def __init__(self, initial_config_path: Optional[Path] = None) -> None:
+        """Initialize the editor window, state containers, and UI widgets.
+
+        Args:
+            initial_config_path (Optional[Path]): Optional config file to load
+                immediately after creating the default blank grid.
+
+        Returns:
+            None: This constructor initializes the application instance in place.
+        """
         super().__init__()
         self.title("GridWorld Environment Editor")
         self.minsize(860, 540)
@@ -134,6 +147,11 @@ class EditorApp(tk.Tk):
     # -----------------------------------------------------------------------
 
     def _build_ui(self) -> None:
+        """Assemble the top-level window layout and child panels.
+
+        Returns:
+            None: Widgets are created and attached to the main window.
+        """
         self._setup_menu()
         # Status / notification bars must be packed before the main content frame
         # so tkinter reserves their space at the bottom first.
@@ -159,6 +177,11 @@ class EditorApp(tk.Tk):
         self._setup_config_panel(right)
 
     def _setup_menu(self) -> None:
+        """Create menu entries and keyboard shortcuts for common file actions.
+
+        Returns:
+            None: Menu state is bound to this window instance.
+        """
         mb = tk.Menu(self)
 
         fm = tk.Menu(mb, tearoff=False)
@@ -185,6 +208,14 @@ class EditorApp(tk.Tk):
         self.bind_all("<Control-S>", lambda _e: self._cmd_save_as())
 
     def _setup_tools_panel(self, parent: ttk.Frame) -> None:
+        """Create the left panel with paint tools and grid resize controls.
+
+        Args:
+            parent (ttk.Frame): Parent container where the tools panel is added.
+
+        Returns:
+            None: The panel widgets are created and packed into ``parent``.
+        """
         ttk.Label(parent, text="PAINT TOOL", font=("TkDefaultFont", 9, "bold")).pack(pady=(8, 4))
 
         self._tool_buttons: dict[CellType, tk.Button] = {}
@@ -223,7 +254,14 @@ class EditorApp(tk.Tk):
         self._select_tool(CellType.WALL)
 
     def _setup_canvas(self, parent: ttk.Frame) -> None:
-        """Central scrollable canvas for the grid."""
+        """Create the central scrollable canvas used for grid drawing.
+
+        Args:
+            parent (ttk.Frame): Parent container where canvas and scrollbars are placed.
+
+        Returns:
+            None: Canvas widgets are created, packed, and event-bound.
+        """
         self._canvas = tk.Canvas(
             parent,
             bg=CANVAS_BG,
@@ -248,6 +286,14 @@ class EditorApp(tk.Tk):
         self._canvas.bind("<Motion>",          self._on_mouse_move)
 
     def _setup_config_panel(self, parent: ttk.Frame) -> None:
+        """Create the right panel with file actions, parameters, and legend.
+
+        Args:
+            parent (ttk.Frame): Parent container where the config panel is added.
+
+        Returns:
+            None: The panel widgets are created and packed into ``parent``.
+        """
         ttk.Label(parent, text="CONFIG", font=("TkDefaultFont", 9, "bold")).pack(pady=(8, 4))
 
         file_actions = ttk.LabelFrame(parent, text="File", padding=6)
@@ -289,6 +335,11 @@ class EditorApp(tk.Tk):
         ttk.Button(bf, text="Save",     command=self._cmd_save).pack(fill=tk.X, pady=2)
 
     def _setup_status_bar(self) -> None:
+        """Create the bottom notification area and persistent status line.
+
+        Returns:
+            None: Bottom status widgets are initialized and attached.
+        """
         bottom = tk.Frame(self)
         bottom.pack(side=tk.BOTTOM, fill=tk.X)
         bottom.columnconfigure(0, weight=1)
@@ -316,14 +367,26 @@ class EditorApp(tk.Tk):
     # -----------------------------------------------------------------------
 
     def _new_grid(self, width: int, height: int) -> None:
-        """Replace the current grid with a blank one of the given dimensions."""
+        """Replace the current grid with a blank grid of the requested size.
+
+        Args:
+            width (int): Number of columns in the new grid.
+            height (int): Number of rows in the new grid.
+
+        Returns:
+            None: The internal grid state is reset and fully redrawn.
+        """
         self.grid_w = width
         self.grid_h = height
         self._grid = [[CellType.EMPTY] * width for _ in range(height)]
         self._full_redraw()
 
     def _full_redraw(self) -> None:
-        """Delete all canvas items and repaint every cell from scratch."""
+        """Delete all canvas items and repaint every cell from scratch.
+
+        Returns:
+            None: Canvas item ids are recreated to match current grid state.
+        """
         self._canvas.delete("all")
         self._canvas.configure(
             scrollregion=(0, 0, self.grid_w * CELL_SIZE, self.grid_h * CELL_SIZE)
@@ -342,40 +405,84 @@ class EditorApp(tk.Tk):
                 self._cell_ids[r][c] = item
 
     def _redraw_cell(self, row: int, col: int) -> None:
-        """Fast single-cell colour update without recreating the canvas item."""
+        """Update one cell's fill color without recreating the canvas rectangle.
+
+        Args:
+            row (int): Grid row index of the cell to repaint.
+            col (int): Grid column index of the cell to repaint.
+
+        Returns:
+            None: The existing canvas item is updated in place.
+        """
         self._canvas.itemconfig(
             self._cell_ids[row][col],
             fill=CELL_COLORS[self._grid[row][col]],
         )
 
-    def _canvas_to_grid(self, ex: int, ey: int) -> Optional[tuple[int, int]]:
-        """Convert a screen-event coordinate to ``(row, col)``, accounting for scroll."""
-        cx = int(self._canvas.canvasx(ex))
-        cy = int(self._canvas.canvasy(ey))
+    def _canvas_to_grid(self, event_x: int, event_y: int) -> Optional[tuple[int, int]]:
+        """Map canvas event coordinates to grid indices.
+
+        Args:
+            event_x (int): Mouse x coordinate relative to the canvas widget.
+            event_y (int): Mouse y coordinate relative to the canvas widget.
+
+        Returns:
+            Optional[tuple[int, int]]: ``(row, col)`` for in-bounds coordinates,
+            otherwise ``None``.
+        """
+        cx = int(self._canvas.canvasx(event_x))
+        cy = int(self._canvas.canvasy(event_y))
         col = cx // CELL_SIZE
         row = cy // CELL_SIZE
         if 0 <= row < self.grid_h and 0 <= col < self.grid_w:
             return row, col
         return None
 
-    def _paint_at(self, ex: int, ey: int, ct: CellType) -> None:
-        pos = self._canvas_to_grid(ex, ey)
+    def _paint_at(self, event_x: int, event_y: int, cell_type: CellType) -> None:
+        """
+        Apply `cell_type` to the cell under the mouse event coordinates.
+        
+        Args:
+            event_x (int): Mouse event x coordinate relative to the canvas widget.
+            event_y (int): Mouse event y coordinate relative to the canvas widget.
+            cell_type (CellType): The cell type to paint at the hovered location.
+
+        Returns:
+            None: The target cell is updated only when its type changes.
+        """
+        pos = self._canvas_to_grid(event_x, event_y)
         if pos is None:
             return
-        r, c = pos
-        if self._grid[r][c] != ct:
-            self._grid[r][c] = ct
-            self._redraw_cell(r, c)
+        row, column = pos
+        if self._grid[row][column] != cell_type:
+            self._grid[row][column] = cell_type
+            self._redraw_cell(row, column)
             self._mark_dirty()
 
-    def _select_tool(self, ct: CellType) -> None:
-        self._active_tool = ct
-        for t, btn in self._tool_buttons.items():
-            btn.config(relief=tk.RAISED if t == ct else tk.FLAT,
-                       bd=3 if t == ct else 2)
+    def _select_tool(self, cell_type: CellType) -> None:
+        """
+        Activate a paint tool and update button styles and status text.
+
+        Args:
+            cell_type (CellType): Paint tool to activate for subsequent edits.
+
+        Returns:
+            None: Internal tool state and button visuals are updated.
+        """
+        self._active_tool = cell_type
+        for tool, button in self._tool_buttons.items():
+            button.config(
+                relief=tk.RAISED if tool == cell_type else tk.FLAT,
+                bd=3 if tool == cell_type else 2,
+            )
         self._update_status()
 
     def _mark_dirty(self) -> None:
+        """Mark the editor as modified and show an asterisk in the title.
+
+        Returns:
+            None: Dirty state and window title are updated once per edit session.
+        """
         if not self._dirty:
             self._dirty = True
             name = self._save_path.name if self._save_path else "Untitled"
@@ -385,32 +492,97 @@ class EditorApp(tk.Tk):
     # Mouse handlers
     # -----------------------------------------------------------------------
 
-    def _on_lmb_press(self, e: tk.Event) -> None:       # type: ignore[type-arg]
+    def _on_lmb_press(self, event: TkMouseEvent) -> None:
+        """Start paint mode and apply the active tool to the first hovered cell.
+
+        Args:
+            event (TkMouseEvent): Tkinter mouse event produced by left-button press.
+
+        Returns:
+            None: Paint mode is enabled and one paint operation is attempted.
+        """
         self._painting = True
-        self._paint_at(e.x, e.y, self._active_tool)
+        self._paint_at(event.x, event.y, self._active_tool)
 
-    def _on_lmb_drag(self, e: tk.Event) -> None:        # type: ignore[type-arg]
+    def _on_lmb_drag(self, event: TkMouseEvent) -> None:
+        """Continue painting while the left mouse button remains pressed.
+
+        Args:
+            event (TkMouseEvent): Tkinter mouse event produced by left-button drag.
+
+        Returns:
+            None: Paint operations continue while paint mode is active.
+        """
         if self._painting:
-            self._paint_at(e.x, e.y, self._active_tool)
+            self._paint_at(event.x, event.y, self._active_tool)
 
-    def _on_lmb_release(self, e: tk.Event) -> None:     # type: ignore[type-arg]
+    def _on_lmb_release(self, _event: TkMouseEvent) -> None:
+        """End left-button paint mode.
+
+        Args:
+            _event (TkMouseEvent): Tkinter mouse event produced by left-button release.
+
+        Returns:
+            None: Paint mode is disabled.
+        """
         self._painting = False
 
-    def _on_rmb_press(self, e: tk.Event) -> None:       # type: ignore[type-arg]
+    def _on_rmb_press(self, event: TkMouseEvent) -> None:
+        """Start erase mode and clear the first hovered cell to EMPTY.
+
+        Args:
+            event (TkMouseEvent): Tkinter mouse event produced by right-button press.
+
+        Returns:
+            None: Erase mode is enabled and one erase operation is attempted.
+        """
         self._erasing = True
-        self._paint_at(e.x, e.y, CellType.EMPTY)
+        self._paint_at(event.x, event.y, CellType.EMPTY)
 
-    def _on_rmb_drag(self, e: tk.Event) -> None:        # type: ignore[type-arg]
+    def _on_rmb_drag(self, event: TkMouseEvent) -> None:
+        """Continue erasing while the right mouse button remains pressed.
+
+        Args:
+            event (TkMouseEvent): Tkinter mouse event produced by right-button drag.
+
+        Returns:
+            None: Erase operations continue while erase mode is active.
+        """
         if self._erasing:
-            self._paint_at(e.x, e.y, CellType.EMPTY)
+            self._paint_at(event.x, event.y, CellType.EMPTY)
 
-    def _on_rmb_release(self, e: tk.Event) -> None:     # type: ignore[type-arg]
+    def _on_rmb_release(self, _event: TkMouseEvent) -> None:
+        """End right-button erase mode.
+
+        Args:
+            _event (TkMouseEvent): Tkinter mouse event produced by right-button release.
+
+        Returns:
+            None: Erase mode is disabled.
+        """
         self._erasing = False
 
-    def _on_mouse_move(self, e: tk.Event) -> None:      # type: ignore[type-arg]
-        self._update_status(self._canvas_to_grid(e.x, e.y))
+    def _on_mouse_move(self, event: TkMouseEvent) -> None:
+        """Refresh status text with the cell currently under the cursor.
+
+        Args:
+            event (TkMouseEvent): Tkinter mouse motion event.
+
+        Returns:
+            None: Status text is refreshed with cursor context.
+        """
+        self._update_status(self._canvas_to_grid(event.x, event.y))
 
     def _update_status(self, pos: Optional[tuple[int, int]] = None) -> None:
+        """Render context status: cursor cell, active tool, and grid dimensions.
+
+        Args:
+            pos (Optional[tuple[int, int]]): Current ``(row, col)`` cursor position,
+                or ``None`` when cursor position is unavailable.
+
+        Returns:
+            None: Status bar text is updated in-place.
+        """
         tool = CELL_LABELS[self._active_tool]
         dims = f"{self.grid_w}×{self.grid_h}"
         if pos is not None:
@@ -423,7 +595,13 @@ class EditorApp(tk.Tk):
     def _notify(self, message: str, level: str = "info") -> None:
         """Show an inline notification above the status bar.
 
-        level: ``'ok'`` | ``'error'`` | ``'warn'`` | ``'info'``
+        Args:
+            message (str): Notification text shown to the user.
+            level (str): Visual style key. Supported values are ``'ok'``,
+                ``'error'``, ``'warn'``, and ``'info'``.
+
+        Returns:
+            None: Notification bar is displayed and may auto-dismiss.
         """
         styles: dict[str, tuple[str, str]] = {
             "ok":    ("#155724", "#D4EDDA"),
@@ -438,7 +616,11 @@ class EditorApp(tk.Tk):
             self.after(5000, self._dismiss_notif)
 
     def _dismiss_notif(self) -> None:
-        """Hide the notification bar."""
+        """Hide the notification bar.
+
+        Returns:
+            None: Notification row is removed from the layout.
+        """
         self._notif_label.grid_remove()
 
     # -----------------------------------------------------------------------
@@ -446,7 +628,11 @@ class EditorApp(tk.Tk):
     # -----------------------------------------------------------------------
 
     def _validate(self) -> list[str]:
-        """Return a list of error strings; empty list means the config is valid."""
+        """Validate current grid and numeric parameters.
+
+        Returns:
+            list[str]: Validation errors. Empty list means the config is valid.
+        """
         errors: list[str] = []
 
         starts = [
@@ -485,7 +671,11 @@ class EditorApp(tk.Tk):
         return errors
 
     def _to_dict(self) -> dict:
-        """Serialise the current editor state to a plain dict (JSON-ready)."""
+        """Serialize the current editor state to a JSON-ready dictionary.
+
+        Returns:
+            dict: Environment config payload compatible with project config files.
+        """
         starts, goals, walls, hazards, slippery = [], [], [], [], []
         for r in range(self.grid_h):
             for c in range(self.grid_w):
@@ -512,7 +702,15 @@ class EditorApp(tk.Tk):
 
     @staticmethod
     def _format_tile_rows(tile_rows: list[list[int]], indent: str = "    ") -> list[str]:
-        """Format tile coordinates as one row per tile: ``[r, c]``."""
+        """Format tile coordinates as one row per tile: ``[r, c]``.
+
+        Args:
+            tile_rows (list[list[int]]): Tile coordinate pairs as ``[row, col]`` lists.
+            indent (str): Prefix added to each formatted coordinate line.
+
+        Returns:
+            list[str]: Formatted coordinate lines, one entry per tile.
+        """
 
         return [f"{indent}[{row}, {col}]" for row, col in tile_rows]
 
@@ -522,6 +720,12 @@ class EditorApp(tk.Tk):
         Rules:
             - Numeric settings first.
             - Tile lists use one line per tile coordinate.
+
+        Args:
+            payload (dict): Configuration dictionary produced by ``_to_dict``.
+
+        Returns:
+            str: Pretty-printed JSON text with stable key ordering.
         """
 
         numeric_keys: tuple[str, ...] = (
@@ -565,50 +769,77 @@ class EditorApp(tk.Tk):
         lines.append("}")
         return "\n".join(lines) + "\n"
 
-    def _from_dict(self, data: dict) -> None:
-        """Populate the editor from a config dict (new *and* legacy format)."""
-        w = int(data["width"])
-        h = int(data["height"])
+    def _from_dict(self, config_data: dict) -> None:
+        """Populate editor state from a config dictionary.
+
+        Supports both modern list-based keys and legacy single-position keys.
+
+        Args:
+            config_data (dict): Parsed environment configuration dictionary.
+
+        Returns:
+            None: Grid data and parameter fields are replaced with loaded values.
+        """
+        w = int(config_data["width"])
+        h = int(config_data["height"])
         self.grid_w, self.grid_h = w, h
         self._var_grid_w.set(str(w))
         self._var_grid_h.set(str(h))
         self._grid = [[CellType.EMPTY] * w for _ in range(h)]
 
-        def _set(r: int, c: int, ct: CellType) -> None:
-            if 0 <= r < h and 0 <= c < w:
-                self._grid[r][c] = ct
+        def _set(row: int, col: int, cell_type: CellType) -> None:
+            """Safely assign a cell type when coordinates are in bounds.
+
+            Args:
+                row (int): Target row index.
+                col (int): Target column index.
+                cell_type (CellType): Value to assign to the target cell.
+
+            Returns:
+                None: Assignment is performed only for in-bounds indices.
+            """
+            if 0 <= row < h and 0 <= col < w:
+                self._grid[row][col] = cell_type
 
         # Support legacy single-position keys as well as the new list keys.
-        if "start_positions" in data:
-            for r, c in data["start_positions"]:
+        if "start_positions" in config_data:
+            for r, c in config_data["start_positions"]:
                 _set(r, c, CellType.START)
-        elif "start_pos" in data:
-            r, c = data["start_pos"]
+        elif "start_pos" in config_data:
+            r, c = config_data["start_pos"]
             _set(r, c, CellType.START)
 
-        if "goal_positions" in data:
-            for r, c in data["goal_positions"]:
+        if "goal_positions" in config_data:
+            for r, c in config_data["goal_positions"]:
                 _set(r, c, CellType.GOAL)
-        elif "goal_pos" in data:
-            r, c = data["goal_pos"]
+        elif "goal_pos" in config_data:
+            r, c = config_data["goal_pos"]
             _set(r, c, CellType.GOAL)
 
-        for r, c in data.get("walls", []):
+        for r, c in config_data.get("walls", []):
             _set(r, c, CellType.WALL)
-        for r, c in data.get("hazards", []):
+        for r, c in config_data.get("hazards", []):
             _set(r, c, CellType.HAZARD)
-        for r, c in data.get("slippery_tiles", []):
+        for r, c in config_data.get("slippery_tiles", []):
             _set(r, c, CellType.SLIPPERY)
 
-        self._var_slip_prob.set(str(data.get("slip_probability", 0.35)))
-        self._var_max_steps.set(str(data.get("max_steps", 200)))
-        self._var_step_pen.set(str(data.get("step_penalty", -0.01)))
-        self._var_goal_rew.set(str(data.get("goal_reward", 1.0)))
-        self._var_hazard_pen.set(str(data.get("hazard_penalty", -1.0)))
+        self._var_slip_prob.set(str(config_data.get("slip_probability", 0.35)))
+        self._var_max_steps.set(str(config_data.get("max_steps", 200)))
+        self._var_step_pen.set(str(config_data.get("step_penalty", -0.01)))
+        self._var_goal_rew.set(str(config_data.get("goal_reward", 1.0)))
+        self._var_hazard_pen.set(str(config_data.get("hazard_penalty", -1.0)))
 
         self._full_redraw()
 
     def _load_from_path(self, path: Path) -> None:
+        """Load a JSON config file, update editor state, and report status.
+
+        Args:
+            path (Path): File path to the JSON environment configuration.
+
+        Returns:
+            None: Editor state is updated on success; error notification on failure.
+        """
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             self._from_dict(data)
@@ -625,6 +856,11 @@ class EditorApp(tk.Tk):
     # -----------------------------------------------------------------------
 
     def _cmd_new(self) -> None:
+        """Create a new blank grid using values from width and height controls.
+
+        Returns:
+            None: Current grid state is replaced and save path is cleared.
+        """
         if not self._ask_discard():
             return
         try:
@@ -639,6 +875,11 @@ class EditorApp(tk.Tk):
         self._status_var.set(f"New {w}×{h} grid created.")
 
     def _cmd_load(self) -> None:
+        """Open a file picker and load a selected environment config.
+
+        Returns:
+            None: Selected file is loaded when user confirms a path.
+        """
         if not self._ask_discard():
             return
         path_str = filedialog.askopenfilename(
@@ -650,12 +891,22 @@ class EditorApp(tk.Tk):
             self._load_from_path(Path(path_str))
 
     def _cmd_save(self) -> None:
+        """Save to the current path or fall back to Save As for new files.
+
+        Returns:
+            None: Current config is persisted if validation and IO succeed.
+        """
         if self._save_path is None:
             self._cmd_save_as()
         else:
             self._save_to_path(self._save_path)
 
     def _cmd_save_as(self) -> None:
+        """Open a file picker and save the current config to a new path.
+
+        Returns:
+            None: Selected destination is used to persist the current config.
+        """
         path_str = filedialog.asksaveasfilename(
             title="Save environment configuration",
             defaultextension=".json",
@@ -666,7 +917,14 @@ class EditorApp(tk.Tk):
             self._save_to_path(Path(path_str))
 
     def _save_to_path(self, path: Path) -> None:
-        """Validate then write the config.  Aborts with a dialog on any error."""
+        """Validate and write the config to disk.
+
+        Args:
+            path (Path): Destination file path for the JSON configuration.
+
+        Returns:
+            None: On success updates save metadata; on failure emits notifications.
+        """
         errors = self._validate()
         if errors:
             first = errors[0]
@@ -685,6 +943,11 @@ class EditorApp(tk.Tk):
             self._notify(f"Save failed: {exc}", "error")
 
     def _cmd_validate(self) -> None:
+        """Run validation checks and show either the first error or summary.
+
+        Returns:
+            None: Validation feedback is shown in the notification bar.
+        """
         errors = self._validate()
         if errors:
             first = errors[0]
@@ -705,6 +968,11 @@ class EditorApp(tk.Tk):
             )
 
     def _cmd_clear_grid(self) -> None:
+        """Reset every cell to EMPTY while preserving current dimensions.
+
+        Returns:
+            None: Grid is redrawn and marked as modified.
+        """
         for r in range(self.grid_h):
             for c in range(self.grid_w):
                 self._grid[r][c] = CellType.EMPTY
@@ -713,7 +981,11 @@ class EditorApp(tk.Tk):
         self._notify("Grid cleared.", "info")
 
     def _cmd_resize(self) -> None:
-        """Resize the grid, preserving existing content in the overlapping region."""
+        """Resize the grid and preserve content in the overlapping area.
+
+        Returns:
+            None: Grid dimensions and display are updated on valid input.
+        """
         try:
             nw = int(self._var_grid_w.get())
             nh = int(self._var_grid_h.get())
@@ -738,10 +1010,19 @@ class EditorApp(tk.Tk):
     # -----------------------------------------------------------------------
 
     def _ask_discard(self) -> bool:
-        """Always permit discarding; the title-bar asterisk warns of unsaved changes."""
+        """Decide whether destructive actions should proceed.
+
+        Returns:
+            bool: Always ``True`` in this implementation.
+        """
         return True
 
     def _on_close(self) -> None:
+        """Handle window close requests.
+
+        Returns:
+            None: Destroys the Tk window if discard policy permits closing.
+        """
         if self._ask_discard():
             self.destroy()
 
@@ -751,6 +1032,11 @@ class EditorApp(tk.Tk):
 # ---------------------------------------------------------------------------
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line options for launching the editor.
+
+    Returns:
+        argparse.Namespace: Parsed CLI arguments with optional config path.
+    """
     p = argparse.ArgumentParser(description="GridWorld environment editor.")
     p.add_argument(
         "--config",
@@ -762,6 +1048,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the editor application when invoked as a script.
+
+    Returns:
+        None: Blocks until the Tkinter main loop exits.
+    """
     args = parse_args()
     app = EditorApp(initial_config_path=args.config)
     app.mainloop()

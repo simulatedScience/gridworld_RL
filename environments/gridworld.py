@@ -61,20 +61,15 @@ class GridWorldConfig:
         path = Path(file_path)
         payload = json.loads(path.read_text(encoding="utf-8"))
 
-        # Support both legacy single-position keys and the new multi-position arrays.
         if "start_positions" in payload:
             start_positions = tuple(Position(*p) for p in payload["start_positions"])
-        elif "start_pos" in payload:
-            start_positions = (Position(*payload["start_pos"]),)
         else:
-            raise ValueError("Config must contain 'start_positions' or 'start_pos'.")
+            raise ValueError("Config must contain 'start_positions'.")
 
         if "goal_positions" in payload:
             goal_positions = tuple(Position(*p) for p in payload["goal_positions"])
-        elif "goal_pos" in payload:
-            goal_positions = (Position(*payload["goal_pos"]),)
         else:
-            raise ValueError("Config must contain 'goal_positions' or 'goal_pos'.")
+            raise ValueError("Config must contain 'goal_positions'.")
 
         return cls(
             width=int(payload["width"]),
@@ -82,7 +77,6 @@ class GridWorldConfig:
             start_positions=start_positions,
             goal_positions=goal_positions,
             walls=tuple(Position(*coords) for coords in payload.get("walls", [])),
-
             hazards=tuple(Position(*coords) for coords in payload.get("hazards", [])),
             slippery_tiles=tuple(Position(*coords) for coords in payload.get("slippery_tiles", [])),
             slip_probability=float(payload.get("slip_probability", 0.35)),
